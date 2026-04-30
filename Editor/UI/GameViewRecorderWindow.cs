@@ -14,6 +14,13 @@ namespace GameViewRecorder.Editor.UI
         private const string MenuPath = "Tools/GameView Recorder";
         private const string OutputFolderName = "GameViewRecord";
 
+        private enum QualityPreset
+        {
+            High = 12,
+            Standard = 18,
+            Performance = 24
+        }
+
         private enum RecorderState
         {
             Idle,
@@ -28,6 +35,7 @@ namespace GameViewRecorder.Editor.UI
         private bool _revealOnStop = true;
         private int _countdownSeconds = 3;
         private int _frameRate = DefaultFrameRate;
+        private QualityPreset _qualityPreset = QualityPreset.Standard;
 
         private RecorderState _state = RecorderState.Idle;
         private double _countdownEndTime;
@@ -73,6 +81,11 @@ namespace GameViewRecorder.Editor.UI
             {
                 _countdownSeconds = EditorGUILayout.IntSlider("倒计时（秒）", _countdownSeconds, 0, 10);
                 _frameRate = EditorGUILayout.IntPopup("录制帧率", _frameRate, new[] { "30 FPS（推荐）", "60 FPS" }, new[] { 30, 60 });
+                _qualityPreset = (QualityPreset)EditorGUILayout.IntPopup(
+                    "画质",
+                    (int)_qualityPreset,
+                    new[] { "高画质（接近原画）", "普通（推荐）", "性能优先" },
+                    new[] { (int)QualityPreset.High, (int)QualityPreset.Standard, (int)QualityPreset.Performance });
                 _includeCursor = EditorGUILayout.ToggleLeft("录制真实系统鼠标光标", _includeCursor);
                 _recordAudio = EditorGUILayout.ToggleLeft("录制游戏音频", _recordAudio);
             }
@@ -149,10 +162,10 @@ namespace GameViewRecorder.Editor.UI
                 int encodeHeight = _captureArea.Height;
 
                 _recorder = new GameViewMediaRecorder();
-                _recorder.Start(_outputPath, _captureArea, _frameRate, _recordAudio, _includeCursor);
+                _recorder.Start(_outputPath, _captureArea, _frameRate, (int)_qualityPreset, _recordAudio, _includeCursor);
                 _nextFrameTime = EditorApplication.timeSinceStartup;
                 _state = RecorderState.Recording;
-                _status = string.Format("录制中 {0}x{1} / {2}FPS（性能模式）", encodeWidth, encodeHeight, _frameRate);
+                _status = string.Format("录制中 {0}x{1} / {2}FPS / {3}", encodeWidth, encodeHeight, _frameRate, GetQualityLabel(_qualityPreset));
             }
             catch (Exception exception)
             {
@@ -226,6 +239,19 @@ namespace GameViewRecorder.Editor.UI
         {
             // 倒计时在 GameView 中央以大字显示，左上角小标签只在录制阶段使用，固定为 REC。
             return "REC";
+        }
+
+        private static string GetQualityLabel(QualityPreset preset)
+        {
+            switch (preset)
+            {
+                case QualityPreset.High:
+                    return "高画质";
+                case QualityPreset.Performance:
+                    return "性能优先";
+                default:
+                    return "普通";
+            }
         }
 
         private void StopRecording(string status, bool revealOutput)
