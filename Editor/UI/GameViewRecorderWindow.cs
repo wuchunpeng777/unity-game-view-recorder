@@ -9,8 +9,8 @@ namespace GameViewRecorder.Editor.UI
 {
     public sealed class GameViewRecorderWindow : EditorWindow
     {
-        private const int FrameRate = 60;
-        private const int MaxFramesPerUpdate = FrameRate * 5;
+        private const int DefaultFrameRate = 30;
+        private const int MaxFramesPerUpdateSeconds = 5;
         private const string MenuPath = "Tools/GameView Recorder";
         private const string OutputFolderName = "GameViewRecord";
 
@@ -27,6 +27,7 @@ namespace GameViewRecorder.Editor.UI
         private bool _recordAudio = true;
         private bool _revealOnStop = true;
         private int _countdownSeconds = 3;
+        private int _frameRate = DefaultFrameRate;
 
         private RecorderState _state = RecorderState.Idle;
         private double _countdownEndTime;
@@ -71,6 +72,7 @@ namespace GameViewRecorder.Editor.UI
             using (new EditorGUI.DisabledScope(_state != RecorderState.Idle))
             {
                 _countdownSeconds = EditorGUILayout.IntSlider("倒计时（秒）", _countdownSeconds, 0, 10);
+                _frameRate = EditorGUILayout.IntPopup("录制帧率", _frameRate, new[] { "30 FPS（推荐）", "60 FPS" }, new[] { 30, 60 });
                 _includeCursor = EditorGUILayout.ToggleLeft("录制真实系统鼠标光标", _includeCursor);
                 _recordAudio = EditorGUILayout.ToggleLeft("录制游戏音频", _recordAudio);
             }
@@ -85,7 +87,6 @@ namespace GameViewRecorder.Editor.UI
             }
 
             EditorGUILayout.Space(6f);
-            EditorGUILayout.LabelField("固定帧率", FrameRate + " FPS");
             EditorGUILayout.LabelField("当前状态", _status);
 
             EditorGUILayout.Space(8f);
@@ -144,19 +145,14 @@ namespace GameViewRecorder.Editor.UI
                 _outputPath = CreateOutputPath();
                 Directory.CreateDirectory(Path.GetDirectoryName(_outputPath));
 
-                if (!_captureArea.HasNativeSize)
-                {
-                    throw new InvalidOperationException("无法获取 GameView 原画分辨率，请检查 Game 标签页配置。");
-                }
-
-                int encodeWidth = _captureArea.NativeWidth;
-                int encodeHeight = _captureArea.NativeHeight;
+                int encodeWidth = _captureArea.Width;
+                int encodeHeight = _captureArea.Height;
 
                 _recorder = new GameViewMediaRecorder();
-                _recorder.Start(_outputPath, encodeWidth, encodeHeight, FrameRate, _recordAudio);
+                _recorder.Start(_outputPath, _captureArea, _frameRate, _recordAudio, _includeCursor);
                 _nextFrameTime = EditorApplication.timeSinceStartup;
                 _state = RecorderState.Recording;
-                _status = string.Format("录制中 {0}x{1}（原画 / 高码率）", encodeWidth, encodeHeight);
+                _status = string.Format("录制中 {0}x{1} / {2}FPS（性能模式）", encodeWidth, encodeHeight, _frameRate);
             }
             catch (Exception exception)
             {
@@ -202,7 +198,7 @@ namespace GameViewRecorder.Editor.UI
             }
 
             double now = EditorApplication.timeSinceStartup;
-            double frameInterval = 1.0 / FrameRate;
+            double frameInterval = 1.0 / _frameRate;
             if (now < _nextFrameTime)
             {
                 return;
@@ -213,7 +209,7 @@ namespace GameViewRecorder.Editor.UI
                 int framesToWrite = Mathf.Clamp(
                     Mathf.FloorToInt((float)((now - _nextFrameTime) / frameInterval)) + 1,
                     1,
-                    MaxFramesPerUpdate);
+                    Mathf.Max(1, _frameRate * MaxFramesPerUpdateSeconds));
                 _recorder.AddFrame(_captureArea, _includeCursor, framesToWrite);
                 _nextFrameTime += frameInterval * framesToWrite;
             }
@@ -278,7 +274,7 @@ namespace GameViewRecorder.Editor.UI
             var listener = FindObjectOfType<AudioListener>();
             if (listener == null)
             {
-                Debug.LogWarning("GameView Recorder: 未找到 AudioListener，输出视频将包含静音音轨。");
+                Debug.LogWarning("GameView Recorder: 未找到 AudioListener，Unity Audio 回退采集不可用；如果 FMOD 采集成功，输出仍会包含 FMOD 音频。");
                 return;
             }
 

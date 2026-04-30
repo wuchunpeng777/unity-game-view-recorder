@@ -12,7 +12,7 @@ namespace GameViewRecorder.Editor.Capture
 {
     internal sealed class GameViewMediaRecorder : IDisposable
     {
-        private readonly GameViewNativeFrameCapture _nativeCapture = new GameViewNativeFrameCapture();
+        private readonly WindowsScreenCapture _screenCapture = new WindowsScreenCapture();
 
         private MediaEncoder _encoder;
         private NativeArray<float> _audioNativeBuffer;
@@ -25,22 +25,27 @@ namespace GameViewRecorder.Editor.Capture
         private FileStream _ffmpegAudioFile;
         private StringBuilder _ffmpegErrors;
         private bool _usingFfmpeg;
+        private bool _usingFfmpegScreenCapture;
         private string _outputPath;
         private string _tempVideoPath;
         private string _tempAudioPath;
         private bool _recordAudio;
         private bool _usingFmodAudio;
         private bool _audioCaptureEnded;
+        private int _x;
+        private int _y;
         private int _width;
         private int _height;
         private int _frameRate;
         private int _audioSampleRate;
         private int _audioChannelCount;
 
-        public void Start(string outputPath, int width, int height, int frameRate, bool recordAudio)
+        public void Start(string outputPath, GameViewCaptureArea area, int frameRate, bool recordAudio, bool includeCursor)
         {
-            _width = width;
-            _height = height;
+            _x = area.X;
+            _y = area.Y;
+            _width = area.Width;
+            _height = area.Height;
             _recordAudio = recordAudio;
             _usingFmodAudio = false;
             _audioCaptureEnded = false;
@@ -50,7 +55,7 @@ namespace GameViewRecorder.Editor.Capture
             _audioSampleRate = AudioSettings.outputSampleRate;
             _audioChannelCount = 2;
 
-            if (TryStartFfmpeg(outputPath, width, height, frameRate, recordAudio))
+            if (TryStartFfmpeg(outputPath, area, frameRate, recordAudio, includeCursor))
             {
                 return;
             }
@@ -58,8 +63,8 @@ namespace GameViewRecorder.Editor.Capture
             var videoAttributes = new VideoTrackAttributes
             {
                 frameRate = new MediaRational(frameRate),
-                width = (uint)width,
-                height = (uint)height,
+                width = (uint)_width,
+                height = (uint)_height,
                 includeAlpha = false
             };
             TrySetHighBitrateMode(ref videoAttributes);
@@ -97,17 +102,22 @@ namespace GameViewRecorder.Editor.Capture
                 return;
             }
 
-            if (!area.HasNativeSize)
+            if (area.X != _x || area.Y != _y || area.Width != _width || area.Height != _height)
             {
-                throw new InvalidOperationException("当前 GameView 未提供原画分辨率，无法录制。");
+                throw new InvalidOperationException("录制过程中 GameView 屏幕显示区域尺寸发生变化，请停止后重新开始录制。");
             }
 
-            if (area.NativeWidth != _width || area.NativeHeight != _height)
+            if (_usingFfmpegScreenCapture)
             {
-                throw new InvalidOperationException("录制过程中 GameView 原画分辨率发生变化，请停止后重新开始录制。");
+                if (_recordAudio)
+                {
+                    DrainFfmpegAudio();
+                }
+
+                return;
             }
 
-            var frame = _nativeCapture.Capture(area, includeCursor);
+            var frame = _screenCapture.Capture(area, includeCursor);
             if (_usingFfmpeg)
             {
                 WriteFfmpegFrame(frame, repeatCount);
@@ -127,7 +137,7 @@ namespace GameViewRecorder.Editor.Capture
             }
         }
 
-        private bool TryStartFfmpeg(string outputPath, int width, int height, int frameRate, bool recordAudio)
+        private bool TryStartFfmpeg(string outputPath, GameViewCaptureArea area, int frameRate, bool recordAudio, bool includeCursor)
         {
             string videoOutputPath = outputPath;
             if (recordAudio)
@@ -142,10 +152,13 @@ namespace GameViewRecorder.Editor.Capture
             }
 
             var arguments = string.Format(
-                "-y -hide_banner -loglevel error -f rawvideo -pix_fmt rgba -s {0}x{1} -r {2} -i - -an -c:v libx264 -preset slow -crf 12 -pix_fmt yuv420p -movflags +faststart \"{3}\"",
-                width,
-                height,
+                "-y -hide_banner -loglevel error -f gdigrab -framerate {0} -offset_x {1} -offset_y {2} -video_size {3}x{4} -draw_mouse {5} -i desktop -an -c:v libx264 -preset ultrafast -crf 12 -tune zerolatency -pix_fmt yuv420p -movflags +faststart \"{6}\"",
                 frameRate,
+                area.X,
+                area.Y,
+                area.Width,
+                area.Height,
+                includeCursor ? 1 : 0,
                 videoOutputPath);
 
             try
@@ -158,9 +171,9 @@ namespace GameViewRecorder.Editor.Capture
                 }
 
                 _ffmpegProcess.ErrorDataReceived += OnFfmpegErrorDataReceived;
-                _ffmpegInput = _ffmpegProcess.StandardInput.BaseStream;
                 _ffmpegProcess.BeginErrorReadLine();
                 _usingFfmpeg = true;
+                _usingFfmpegScreenCapture = true;
 
                 if (recordAudio)
                 {
@@ -259,8 +272,16 @@ namespace GameViewRecorder.Editor.Capture
         {
             try
             {
-                _ffmpegInput?.Dispose();
-                _ffmpegInput = null;
+                if (_usingFfmpegScreenCapture)
+                {
+                    _ffmpegProcess?.StandardInput.WriteLine("q");
+                    _ffmpegProcess?.StandardInput.Flush();
+                }
+                else
+                {
+                    _ffmpegInput?.Dispose();
+                    _ffmpegInput = null;
+                }
 
                 if (_ffmpegProcess != null && !_ffmpegProcess.WaitForExit(30000))
                 {
@@ -375,6 +396,7 @@ namespace GameViewRecorder.Editor.Capture
             _ffmpegAudioFile?.Dispose();
             _ffmpegAudioFile = null;
             _usingFfmpeg = false;
+            _usingFfmpegScreenCapture = false;
         }
 
         private static void DeleteIfExists(string path)
@@ -412,7 +434,7 @@ namespace GameViewRecorder.Editor.Capture
                 FinishFfmpeg();
                 EndAudioCapture();
 
-                _nativeCapture.Dispose();
+                _screenCapture.Dispose();
                 return;
             }
 
@@ -425,7 +447,7 @@ namespace GameViewRecorder.Editor.Capture
 
             _encoder?.Dispose();
             _encoder = null;
-            _nativeCapture.Dispose();
+            _screenCapture.Dispose();
         }
     }
 }
