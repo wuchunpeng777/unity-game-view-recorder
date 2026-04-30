@@ -88,11 +88,6 @@ namespace GameViewRecorder.Editor.UI
             EditorGUILayout.LabelField("固定帧率", FrameRate + " FPS");
             EditorGUILayout.LabelField("当前状态", _status);
 
-            if (!string.IsNullOrEmpty(_outputPath))
-            {
-                EditorGUILayout.SelectableLabel(_outputPath, EditorStyles.textField, GUILayout.Height(18f));
-            }
-
             EditorGUILayout.Space(8f);
 
             using (new EditorGUILayout.HorizontalScope())

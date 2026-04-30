@@ -8,7 +8,7 @@ namespace GameViewRecorder.Editor.UI
 {
     internal static class GameViewRecordingOverlayWindow
     {
-        private const float BorderThickness = 1f;
+        private const float BorderThickness = 2f;
         private const float OutsideGap = 2f;
         private const float LabelHeight = 22f;
         private const float LabelMinWidth = 60f;
