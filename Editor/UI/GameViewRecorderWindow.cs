@@ -9,7 +9,7 @@ namespace GameViewRecorder.Editor.UI
 {
     public sealed class GameViewRecorderWindow : EditorWindow
     {
-        private const int DefaultFrameRate = 30;
+        private const int DefaultFrameRate = 60;
         private const int MaxFramesPerUpdateSeconds = 5;
         private const string MenuPath = "Tools/GameView Recorder";
         private const string OutputFolderName = "GameViewRecord";
@@ -38,7 +38,7 @@ namespace GameViewRecorder.Editor.UI
         private bool _includeCursor = true;
         private bool _recordAudio = true;
         private bool _revealOnStop = true;
-        private int _countdownSeconds = 3;
+        private int _countdownSeconds = 0;
         private int _frameRate = DefaultFrameRate;
         private QualityPreset _qualityPreset = QualityPreset.Standard;
 
@@ -65,7 +65,7 @@ namespace GameViewRecorder.Editor.UI
             _includeCursor = EditorPrefs.GetBool(IncludeCursorPrefsKey, true);
             _recordAudio = EditorPrefs.GetBool(RecordAudioPrefsKey, true);
             _revealOnStop = EditorPrefs.GetBool(RevealOnStopPrefsKey, true);
-            _countdownSeconds = EditorPrefs.GetInt(CountdownSecondsPrefsKey, 3);
+            _countdownSeconds = EditorPrefs.GetInt(CountdownSecondsPrefsKey, 0);
             _frameRate = EditorPrefs.GetInt(FrameRatePrefsKey, DefaultFrameRate);
             _qualityPreset = (QualityPreset)EditorPrefs.GetInt(QualityPresetPrefsKey, (int)QualityPreset.Standard);
             EditorApplication.update += OnEditorUpdate;
@@ -92,11 +92,11 @@ namespace GameViewRecorder.Editor.UI
                 using (var check = new EditorGUI.ChangeCheckScope())
                 {
                     _countdownSeconds = EditorGUILayout.IntSlider("倒计时（秒）", _countdownSeconds, 0, 10);
-                    _frameRate = EditorGUILayout.IntPopup("录制帧率", _frameRate, new[] { "30 FPS（推荐）", "60 FPS" }, new[] { 30, 60 });
+                    _frameRate = EditorGUILayout.IntPopup("录制帧率", _frameRate, new[] { "30 FPS", "60 FPS" }, new[] { 30, 60 });
                     _qualityPreset = (QualityPreset)EditorGUILayout.IntPopup(
                         "画质",
                         (int)_qualityPreset,
-                        new[] { "高画质（接近原画）", "普通（推荐）", "性能优先" },
+                        new[] { "高画质（接近原画）", "普通", "性能优先" },
                         new[] { (int)QualityPreset.High, (int)QualityPreset.Standard, (int)QualityPreset.Performance });
                     _includeCursor = EditorGUILayout.ToggleLeft("录制真实系统鼠标光标", _includeCursor);
                     _recordAudio = EditorGUILayout.ToggleLeft("录制游戏音频", _recordAudio);
