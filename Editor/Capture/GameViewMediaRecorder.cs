@@ -19,6 +19,7 @@ namespace GameViewRecorder.Editor.Capture
         private float[] _audioManagedBuffer;
         private byte[] _audioByteBuffer;
         private byte[] _frameByteBuffer;
+        private int _ffmpegAudioSampleCount;
         private Process _ffmpegProcess;
         private Stream _ffmpegInput;
         private FileStream _ffmpegAudioFile;
@@ -28,6 +29,8 @@ namespace GameViewRecorder.Editor.Capture
         private string _tempVideoPath;
         private string _tempAudioPath;
         private bool _recordAudio;
+        private bool _usingFmodAudio;
+        private bool _audioCaptureEnded;
         private int _width;
         private int _height;
         private int _frameRate;
@@ -39,6 +42,9 @@ namespace GameViewRecorder.Editor.Capture
             _width = width;
             _height = height;
             _recordAudio = recordAudio;
+            _usingFmodAudio = false;
+            _audioCaptureEnded = false;
+            _ffmpegAudioSampleCount = 0;
             _outputPath = outputPath;
             _frameRate = frameRate;
             _audioSampleRate = AudioSettings.outputSampleRate;
@@ -158,11 +164,17 @@ namespace GameViewRecorder.Editor.Capture
 
                 if (recordAudio)
                 {
-                    int audioSamplesPerFrame = _audioChannelCount * _audioSampleRate / frameRate;
-                    _audioManagedBuffer = new float[audioSamplesPerFrame];
-                    _audioByteBuffer = new byte[audioSamplesPerFrame * sizeof(float)];
                     _ffmpegAudioFile = new FileStream(_tempAudioPath, FileMode.Create, FileAccess.Write, FileShare.Read);
-                    GameViewRecorderAudioTap.BeginCapture();
+                    if (GameViewRecorderFmodAudioTap.BeginCapture(out int fmodSampleRate, out int fmodChannelCount))
+                    {
+                        _usingFmodAudio = true;
+                        _audioSampleRate = fmodSampleRate;
+                        _audioChannelCount = fmodChannelCount;
+                    }
+                    else
+                    {
+                        GameViewRecorderAudioTap.BeginCapture();
+                    }
                 }
 
                 return true;
@@ -193,14 +205,54 @@ namespace GameViewRecorder.Editor.Capture
             for (int i = 0; i < repeatCount; i++)
             {
                 _ffmpegInput.Write(_frameByteBuffer, 0, _frameByteBuffer.Length);
-
-                if (_recordAudio)
-                {
-                    GameViewRecorderAudioTap.Fill(_audioManagedBuffer);
-                    Buffer.BlockCopy(_audioManagedBuffer, 0, _audioByteBuffer, 0, _audioByteBuffer.Length);
-                    _ffmpegAudioFile.Write(_audioByteBuffer, 0, _audioByteBuffer.Length);
-                }
             }
+
+            if (_recordAudio)
+            {
+                DrainFfmpegAudio();
+            }
+        }
+
+        private void DrainFfmpegAudio()
+        {
+            while (TryDequeueAudio(out var audioBuffer))
+            {
+                int byteCount = audioBuffer.Length * sizeof(float);
+                if (_audioByteBuffer == null || _audioByteBuffer.Length < byteCount)
+                {
+                    _audioByteBuffer = new byte[byteCount];
+                }
+
+                Buffer.BlockCopy(audioBuffer, 0, _audioByteBuffer, 0, byteCount);
+                _ffmpegAudioFile.Write(_audioByteBuffer, 0, byteCount);
+                _ffmpegAudioSampleCount += audioBuffer.Length;
+            }
+        }
+
+        private bool TryDequeueAudio(out float[] audioBuffer)
+        {
+            return _usingFmodAudio
+                ? GameViewRecorderFmodAudioTap.TryDequeue(out audioBuffer)
+                : GameViewRecorderAudioTap.TryDequeue(out audioBuffer);
+        }
+
+        private void EndAudioCapture()
+        {
+            if (!_recordAudio || _audioCaptureEnded)
+            {
+                return;
+            }
+
+            if (_usingFmodAudio)
+            {
+                GameViewRecorderFmodAudioTap.EndCapture();
+            }
+            else
+            {
+                GameViewRecorderAudioTap.EndCapture();
+            }
+
+            _audioCaptureEnded = true;
         }
 
         private void FinishFfmpeg()
@@ -222,6 +274,8 @@ namespace GameViewRecorder.Editor.Capture
 
                 if (_recordAudio)
                 {
+                    DrainFfmpegAudio();
+                    EndAudioCapture();
                     _ffmpegAudioFile?.Dispose();
                     _ffmpegAudioFile = null;
                     MuxFfmpegAudio();
@@ -246,6 +300,13 @@ namespace GameViewRecorder.Editor.Capture
                 || !File.Exists(_tempVideoPath)
                 || !File.Exists(_tempAudioPath))
             {
+                return;
+            }
+
+            if (_ffmpegAudioSampleCount <= 0)
+            {
+                File.Copy(_tempVideoPath, _outputPath, true);
+                Debug.LogWarning("GameView Recorder: 未采集到游戏音频，已保留无音频视频。请确认场景中有启用的 AudioListener 且 Game 视图能听到声音。");
                 return;
             }
 
@@ -346,17 +407,16 @@ namespace GameViewRecorder.Editor.Capture
 
         public void Dispose()
         {
-            if (_recordAudio)
-            {
-                GameViewRecorderAudioTap.EndCapture();
-            }
-
             if (_usingFfmpeg)
             {
                 FinishFfmpeg();
+                EndAudioCapture();
+
                 _nativeCapture.Dispose();
                 return;
             }
+
+            EndAudioCapture();
 
             if (_audioNativeBuffer.IsCreated)
             {

@@ -1,7 +1,9 @@
 {
     "name": "GameViewRecorder.Runtime",
     "rootNamespace": "GameViewRecorder",
-    "references": [],
+    "references": [
+        "FMODUnity"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

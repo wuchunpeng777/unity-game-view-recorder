@@ -73,6 +73,31 @@ namespace GameViewRecorder.Runtime
             }
         }
 
+        public static bool TryDequeue(out float[] buffer)
+        {
+            lock (SyncRoot)
+            {
+                if (_currentBuffer != null && _currentBufferIndex < _currentBuffer.Length)
+                {
+                    int count = _currentBuffer.Length - _currentBufferIndex;
+                    buffer = new float[count];
+                    Array.Copy(_currentBuffer, _currentBufferIndex, buffer, 0, count);
+                    _currentBuffer = null;
+                    _currentBufferIndex = 0;
+                    return true;
+                }
+
+                if (PendingBuffers.Count > 0)
+                {
+                    buffer = PendingBuffers.Dequeue();
+                    return true;
+                }
+            }
+
+            buffer = null;
+            return false;
+        }
+
         private void OnAudioFilterRead(float[] data, int channels)
         {
             lock (SyncRoot)
