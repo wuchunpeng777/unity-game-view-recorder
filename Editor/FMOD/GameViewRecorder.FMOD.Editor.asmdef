@@ -1,0 +1,21 @@
+{
+    "name": "GameViewRecorder.FMOD.Editor",
+    "rootNamespace": "GameViewRecorder.Editor.FMOD",
+    "references": [
+        "GameViewRecorder.Runtime",
+        "FMODUnity"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "GAME_VIEW_RECORDER_FMOD"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

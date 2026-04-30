@@ -9,7 +9,7 @@ Unity Editor 内的 GameView 录制工具，用于在 Play Mode 下录制 GameVi
 - 支持 30 FPS 和 60 FPS 录制。
 - 支持三档画质：高画质（接近原画）、普通（推荐）、性能优先。
 - 支持录制真实系统鼠标光标。
-- 支持录制游戏音频，优先采集 FMOD master 输出，失败时回退 Unity Audio。
+- 支持录制游戏音频；启用 `GAME_VIEW_RECORDER_FMOD` 且项目安装 FMOD 时，会优先采集 FMOD master 输出，失败时回退 Unity Audio。
 - 支持开始前倒计时，并在 GameView 上显示录制边框和 REC 标记。
 - 支持停止录制后自动打开输出文件夹。
 
@@ -20,7 +20,7 @@ Unity Editor 内的 GameView 录制工具，用于在 Play Mode 下录制 GameVi
 - 录制状态、倒计时和边框直接显示在 GameView 附近，方便确认录制范围和开始时机。
 - 录制参数保存在本地，下次打开窗口会自动恢复常用设置。
 - 输出目录固定在项目根目录下的 `GameViewRecord`，方便项目内协作和素材归档。
-- 支持 FMOD 项目音频录制，适合游戏内音频不走 Unity Audio 的项目。
+- 可选支持 FMOD 项目音频录制，适合游戏内音频不走 Unity Audio 的项目。
 - 工具在 Editor 内使用，不需要打包 Player，也不需要切换到外部录屏软件操作。
 
 ## 环境要求
@@ -28,7 +28,7 @@ Unity Editor 内的 GameView 录制工具，用于在 Play Mode 下录制 GameVi
 - Unity 2020.3 或更高版本。
 - Windows Editor。
 - 已安装 FFmpeg，并确保 `ffmpeg` 可以在命令行中直接执行。
-- 当前版本引用了 `FMODUnity` 程序集；项目需要包含 FMOD Unity 集成。
+- FMOD Unity 集成为可选依赖；需要启用 FMOD 采集时，请在 Player Settings 的 Scripting Define Symbols 中添加 `GAME_VIEW_RECORDER_FMOD`。
 
 ## 安装方式
 
