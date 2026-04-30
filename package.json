@@ -1,0 +1,17 @@
+{
+  "name": "com.firebox.game-view-recorder",
+  "version": "0.1.0",
+  "displayName": "GameView Recorder",
+  "description": "Unity Editor tool for recording the effective GameView display area to MP4/H.264 in Play Mode.",
+  "unity": "2020.3",
+  "keywords": [
+    "editor",
+    "gameview",
+    "recorder",
+    "mp4"
+  ],
+  "author": {
+    "name": "firebox"
+  },
+  "type": "tool"
+}
