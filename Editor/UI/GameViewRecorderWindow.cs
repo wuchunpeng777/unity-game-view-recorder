@@ -28,7 +28,12 @@ namespace GameViewRecorder.Editor.UI
             Recording
         }
 
+        private const string IncludeCursorPrefsKey = "GameViewRecorder.IncludeCursor";
+        private const string RecordAudioPrefsKey = "GameViewRecorder.RecordAudio";
         private const string RevealOnStopPrefsKey = "GameViewRecorder.RevealOnStop";
+        private const string CountdownSecondsPrefsKey = "GameViewRecorder.CountdownSeconds";
+        private const string FrameRatePrefsKey = "GameViewRecorder.FrameRate";
+        private const string QualityPresetPrefsKey = "GameViewRecorder.QualityPreset";
 
         private bool _includeCursor = true;
         private bool _recordAudio = true;
@@ -57,7 +62,12 @@ namespace GameViewRecorder.Editor.UI
 
         private void OnEnable()
         {
+            _includeCursor = EditorPrefs.GetBool(IncludeCursorPrefsKey, true);
+            _recordAudio = EditorPrefs.GetBool(RecordAudioPrefsKey, true);
             _revealOnStop = EditorPrefs.GetBool(RevealOnStopPrefsKey, true);
+            _countdownSeconds = EditorPrefs.GetInt(CountdownSecondsPrefsKey, 3);
+            _frameRate = EditorPrefs.GetInt(FrameRatePrefsKey, DefaultFrameRate);
+            _qualityPreset = (QualityPreset)EditorPrefs.GetInt(QualityPresetPrefsKey, (int)QualityPreset.Standard);
             EditorApplication.update += OnEditorUpdate;
             EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
         }
@@ -79,15 +89,22 @@ namespace GameViewRecorder.Editor.UI
 
             using (new EditorGUI.DisabledScope(_state != RecorderState.Idle))
             {
-                _countdownSeconds = EditorGUILayout.IntSlider("倒计时（秒）", _countdownSeconds, 0, 10);
-                _frameRate = EditorGUILayout.IntPopup("录制帧率", _frameRate, new[] { "30 FPS（推荐）", "60 FPS" }, new[] { 30, 60 });
-                _qualityPreset = (QualityPreset)EditorGUILayout.IntPopup(
-                    "画质",
-                    (int)_qualityPreset,
-                    new[] { "高画质（接近原画）", "普通（推荐）", "性能优先" },
-                    new[] { (int)QualityPreset.High, (int)QualityPreset.Standard, (int)QualityPreset.Performance });
-                _includeCursor = EditorGUILayout.ToggleLeft("录制真实系统鼠标光标", _includeCursor);
-                _recordAudio = EditorGUILayout.ToggleLeft("录制游戏音频", _recordAudio);
+                using (var check = new EditorGUI.ChangeCheckScope())
+                {
+                    _countdownSeconds = EditorGUILayout.IntSlider("倒计时（秒）", _countdownSeconds, 0, 10);
+                    _frameRate = EditorGUILayout.IntPopup("录制帧率", _frameRate, new[] { "30 FPS（推荐）", "60 FPS" }, new[] { 30, 60 });
+                    _qualityPreset = (QualityPreset)EditorGUILayout.IntPopup(
+                        "画质",
+                        (int)_qualityPreset,
+                        new[] { "高画质（接近原画）", "普通（推荐）", "性能优先" },
+                        new[] { (int)QualityPreset.High, (int)QualityPreset.Standard, (int)QualityPreset.Performance });
+                    _includeCursor = EditorGUILayout.ToggleLeft("录制真实系统鼠标光标", _includeCursor);
+                    _recordAudio = EditorGUILayout.ToggleLeft("录制游戏音频", _recordAudio);
+                    if (check.changed)
+                    {
+                        SaveRecordingOptions();
+                    }
+                }
             }
 
             using (var check = new EditorGUI.ChangeCheckScope())
@@ -252,6 +269,15 @@ namespace GameViewRecorder.Editor.UI
                 default:
                     return "普通";
             }
+        }
+
+        private void SaveRecordingOptions()
+        {
+            EditorPrefs.SetBool(IncludeCursorPrefsKey, _includeCursor);
+            EditorPrefs.SetBool(RecordAudioPrefsKey, _recordAudio);
+            EditorPrefs.SetInt(CountdownSecondsPrefsKey, _countdownSeconds);
+            EditorPrefs.SetInt(FrameRatePrefsKey, _frameRate);
+            EditorPrefs.SetInt(QualityPresetPrefsKey, (int)_qualityPreset);
         }
 
         private void StopRecording(string status, bool revealOutput)
